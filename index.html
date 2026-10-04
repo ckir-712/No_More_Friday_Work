@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>중대 행정·근무 통합</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>중대 행정·근무 통합</h1>
+      <p>연명부 · 취사지원 · 파견 · 휴가 — 이 컴퓨터에만 저장됩니다</p>
+    </div>
+    <div class="header-actions">
+      <input type="file" id="btn-import-file" accept=".json,application/json" hidden>
+      <button type="button" class="btn" id="btn-export">JSON 내보내기</button>
+      <button type="button" class="btn" id="btn-import">JSON 불러오기</button>
+      <button type="button" class="btn" id="btn-sample">예시 데이터 불러오기</button>
+      <button type="button" class="btn danger" id="btn-reset">전체 초기화</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button type="button" class="tab active" data-tab="roster">연명부</button>
+    <button type="button" class="tab" data-tab="duty">취사지원</button>
+    <button type="button" class="tab" data-tab="dispatch">파견</button>
+    <button type="button" class="tab" data-tab="leave">휴가</button>
+  </nav>
+
+  <section id="page-roster" class="page active">
+    <div class="panel">
+      <h2 id="roster-form-title">인원 추가</h2>
+      <form id="roster-form">
+        <input type="hidden" id="roster-id">
+        <div class="row">
+          <div class="grow"><label for="roster-serial">군번</label><input id="roster-serial" required></div>
+          <div class="grow"><label for="roster-rank">계급</label><select id="roster-rank"></select></div>
+          <div class="grow"><label for="roster-name">성명</label><input id="roster-name" required></div>
+          <div class="grow"><label for="roster-spec">병과/특기</label><select id="roster-spec"></select></div>
+          <div class="grow"><label for="roster-platoon">소속</label><select id="roster-platoon"></select></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><label>입대일</label><button type="button" class="date-field" id="roster-enlist">날짜 선택</button></div>
+          <div><label>전역예정일</label><button type="button" class="date-field" id="roster-discharge">날짜 선택</button></div>
+          <div><label>전입일</label><button type="button" class="date-field" id="roster-transfer">날짜 선택</button></div>
+          <div class="grow"><label for="roster-note">비고</label><input id="roster-note"></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button type="submit" class="btn primary" id="roster-submit">추가</button>
+          <button type="button" class="btn ghost" id="roster-cancel">취소</button>
+        </div>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="toolbar">
+        <h2>연명부</h2>
+        <div class="row">
+          <div><label for="filter-platoon">소대</label><select id="filter-platoon"><option value="">전체</option></select></div>
+          <div><label for="filter-spec">특기</label><select id="filter-spec"><option value="">전체</option></select></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>군번</th><th>계급</th><th>성명</th><th>병과/특기</th><th>소속</th>
+              <th>입대일</th><th>전역예정일</th><th>전입일</th><th>비고</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="roster-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-duty" class="page">
+    <div class="panel">
+      <div class="toolbar">
+        <div class="month-nav">
+          <button type="button" class="btn" id="duty-prev">이전달</button>
+          <strong id="duty-month-label"></strong>
+          <button type="button" class="btn" id="duty-next">다음달</button>
+        </div>
+        <div class="row">
+          <button type="button" class="btn primary" id="duty-generate">이 달 편성</button>
+          <button type="button" class="btn" id="duty-heatmap" title="평일·주말 횟수"><span class="eye-icon" aria-hidden="true"></span> 횟수 보기</button>
+        </div>
+      </div>
+      <p class="muted" id="duty-summary"></p>
+      <div class="table-wrap">
+        <div id="duty-calendar" class="cal-month"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>다른 근무로 막기</h2>
+      <form id="block-form">
+        <div class="row">
+          <div class="grow"><label for="block-person">인원</label><select id="block-person"></select></div>
+          <div><label>기간</label><button type="button" class="date-field" id="block-range">기간 선택</button></div>
+          <div class="grow"><label for="block-reason">사유</label><input id="block-reason" placeholder="CCTV, 불침번 등"></div>
+          <div><button type="submit" class="btn primary">추가</button></div>
+        </div>
+      </form>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>인원</th><th>기간</th><th>사유</th><th></th></tr></thead>
+          <tbody id="block-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-dispatch" class="page">
+    <div class="panel">
+      <div class="toolbar">
+        <div class="month-nav">
+          <button type="button" class="btn" id="disp-prev">이전달</button>
+          <strong id="disp-month-label"></strong>
+          <button type="button" class="btn" id="disp-next">다음달</button>
+        </div>
+        <div class="row">
+          <div><label for="disp-platoon">이 달 파견 소대</label><select id="disp-platoon"></select></div>
+          <div><button type="button" class="btn" id="disp-save-platoon">소대 저장</button></div>
+        </div>
+      </div>
+      <p class="muted" id="disp-rotate-hint"></p>
+      <div class="two-col">
+        <div>
+          <h3>지난달 파견 <span class="muted" id="ipa-range"></span></h3>
+          <div id="ipa-list"></div>
+        </div>
+        <div>
+          <h3>이번 달 파견 <span class="muted" id="haepa-range"></span></h3>
+          <div id="haepa-list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>다음 파견자 선택</h2>
+      <div class="row">
+        <div><label for="next-month">파견 출발 월</label><select id="next-month"></select></div>
+        <p class="muted" id="next-platoon-label"></p>
+      </div>
+      <div class="two-col" style="margin-top:12px">
+        <div>
+          <h3>운전병</h3>
+          <div id="cand-driver"></div>
+        </div>
+        <div>
+          <h3>통신병</h3>
+          <div id="cand-signal"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button type="button" class="btn primary" id="next-save">다음 월 명단 저장</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>파견 변동사항</h2>
+      <form id="change-form">
+        <div class="row">
+          <div class="grow"><label for="change-month">대상 출발 월</label><select id="change-month"></select></div>
+          <div class="grow"><label for="change-person">인원</label><select id="change-person"></select></div>
+          <div class="grow"><label for="change-type">종류</label>
+            <select id="change-type">
+              <option value="extend">파견연장</option>
+              <option value="early">조기복귀</option>
+              <option value="replace">인원 교체</option>
+            </select>
+          </div>
+          <div><label>적용일</label><button type="button" class="date-field" id="change-date">날짜 선택</button></div>
+          <div class="grow" id="change-replace-wrap"><label for="change-replace">대체 인원</label><select id="change-replace"></select></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="grow"><label for="change-note">내용</label><input id="change-note"></div>
+          <div><button type="submit" class="btn primary">반영</button></div>
+        </div>
+      </form>
+      <p class="notice" id="change-notice" hidden></p>
+      <div id="change-list" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <section id="page-leave" class="page">
+    <div class="panel">
+      <div class="toolbar">
+        <div class="month-nav">
+          <button type="button" class="btn" id="leave-prev">이전달</button>
+          <strong id="leave-month-label"></strong>
+          <button type="button" class="btn" id="leave-next">다음달</button>
+        </div>
+        <div>
+          <span class="badge" id="leave-cap"></span>
+          <button type="button" class="btn primary" id="leave-close">종합 종료</button>
+        </div>
+      </div>
+      <h2>휴가 희망자</h2>
+      <form id="leave-form">
+        <div class="row">
+          <div class="grow"><label for="leave-person">인원</label><select id="leave-person"></select></div>
+          <div><label>기간</label><button type="button" class="date-field" id="leave-range">기간 선택</button></div>
+          <div class="grow"><label for="leave-type">휴가 종류</label><select id="leave-type"></select></div>
+          <div><button type="submit" class="btn primary">추가</button></div>
+        </div>
+      </form>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>관등성명</th><th>시작일</th><th>종료일</th><th>종류</th><th>상태</th><th></th></tr></thead>
+          <tbody id="leave-req-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>휴가 리스트</h2>
+      <p class="muted" id="leave-list-empty">종합 종료를 누르면 이 달 확정 희망자가 여기로 옮겨집니다. 보류는 희망자 목록에 남습니다.</p>
+      <div class="table-wrap">
+        <table class="leave-matrix" id="leave-matrix"></table>
+      </div>
+    </div>
+  </section>
+
+  <div class="modal-overlay" id="heatmap-overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>취사지원 횟수</h3>
+        <button type="button" class="icon-btn" id="heatmap-close">닫기</button>
+      </div>
+      <div class="heatmap" id="heatmap-head"><span></span><strong>평일</strong><strong>주말</strong></div>
+      <div id="heatmap-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay egg-overlay" id="egg-overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>중대원 찐빠 목록</h3>
+        <button type="button" class="icon-btn" id="egg-close">닫기</button>
+      </div>
+      <form id="egg-form">
+        <input type="hidden" id="egg-id">
+        <div class="row">
+          <div><label>날짜</label><button type="button" class="date-field" id="egg-date">날짜 선택</button></div>
+          <div class="grow"><label for="egg-person">대상</label><select id="egg-person"></select></div>
+          <div class="grow"><label for="egg-text">내용</label><input id="egg-text" required></div>
+          <div><button type="submit" class="btn primary">저장</button></div>
+        </div>
+      </form>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>날짜</th><th>대상</th><th>내용</th><th></th></tr></thead>
+          <tbody id="egg-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/roster.js"></script>
+  <script src="js/leave.js"></script>
+  <script src="js/dispatch.js"></script>
+  <script src="js/duty.js"></script>
+  <script src="js/egg.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
