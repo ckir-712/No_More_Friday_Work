@@ -8,16 +8,25 @@ var DispatchPage = (function () {
     }
   }
 
-  function memberHtml(state, rec, departMonth) {
+  function memberHtml(state, rec, departMonth, windowStart, windowEnd) {
     if (!rec || !rec.members || !rec.members.length) return '<p class="muted">아직 명단이 없습니다.</p>';
     var html = "";
+    var shown = 0;
     for (var i = 0; i < rec.members.length; i++) {
-      var m = rec.members[i];
-      var person = Unit.findPerson(state, m.personId);
-      html +=
-        '<div class="candidate"><div><strong>' + Unit.title(person) + "</strong> " +
-        '<span class="badge">' + (m.role === "driver" ? "운전" : "통신") + "</span></div></div>";
+      var segs = Unit.applyMemberChanges(departMonth, rec.members[i], rec.changes);
+      for (var s = 0; s < segs.length; s++) {
+        var seg = segs[s];
+        if (seg.end < seg.start) continue;
+        if (!DateUtil.rangesOverlap(seg.start, seg.end, windowStart, windowEnd)) continue;
+        var person = Unit.findPerson(state, seg.personId);
+        html +=
+          '<div class="candidate"><div><strong>' + Unit.title(person) + "</strong> " +
+          '<span class="badge">' + (seg.role === "driver" ? "운전" : "통신") + "</span>" +
+          '<div class="seg-dates">부재 ' + seg.start + " ~ " + seg.end + "</div></div></div>";
+        shown++;
+      }
     }
+    if (!shown) return '<p class="muted">이 기간에 남은 인원이 없습니다.</p>';
     return html;
   }
 
@@ -56,7 +65,8 @@ var DispatchPage = (function () {
       var dis = c.excluded ? " disabled" : "";
       var why = c.excluded ? " · 휴가 " + c.leave.start + " ~ " + c.leave.end : "";
       html +=
-        '<label class="candidate"><span><input type="checkbox" name="' + name + '" value="' + c.person.id + '"' + dis + "> " +
+        '<label class="candidate"><span><input type="checkbox" name="' + name + '" value="' + c.person.id + '"' +
+        (c.excluded ? ' data-excluded="1"' : "") + dis + "> " +
         Unit.title(c.person) + why + '</span><span class="badge">파견 ' + c.count + "회</span></label>";
     }
     if (!list.length) html = '<p class="muted">해당 특기 인원이 없습니다.</p>';
@@ -147,6 +157,24 @@ var DispatchPage = (function () {
     }
   }
 
+  function limitChecks(name, max) {
+    var boxes = document.querySelectorAll('input[name="' + name + '"]');
+    var checked = [];
+    var i;
+    for (i = 0; i < boxes.length; i++) if (boxes[i].checked) checked.push(boxes[i]);
+    if (checked.length > max) checked[checked.length - 1].checked = false;
+    var n = 0;
+    for (i = 0; i < boxes.length; i++) if (boxes[i].checked) n++;
+    for (i = 0; i < boxes.length; i++) {
+      if (boxes[i].getAttribute("data-excluded") === "1") {
+        boxes[i].disabled = true;
+        boxes[i].checked = false;
+        continue;
+      }
+      boxes[i].disabled = !boxes[i].checked && n >= max;
+    }
+  }
+
   function render() {
     var state = AppStore.load();
     if (!state.dispatchRotation.baseMonth) {
@@ -165,14 +193,46 @@ var DispatchPage = (function () {
       state.dispatchRotation.basePlatoon + "소대부터 한 달씩 순환합니다. 14일 출발, 운전 1 · 통신 3.";
 
     var prev = DateUtil.addMonths(monthKey, -1);
-    var ipa = Unit.dispatchPeriod(prev);
-    ipa.start = monthKey + "-01";
-    ipa.end = monthKey + "-14";
-    var haepa = { start: monthKey + "-14", end: DateUtil.addMonths(monthKey, 1) + "-13" };
-    document.getElementById("ipa-range").textContent = ipa.start + " ~ " + ipa.end + " · 14일 인수인계";
-    document.getElementById("haepa-range").textContent = haepa.start + " ~ " + haepa.end + " · 14일 인수인계";
-    document.getElementById("ipa-list").innerHTML = memberHtml(state, state.dispatches[prev], prev);
-    document.getElementById("haepa-list").innerHTML = memberHtml(state, state.dispatches[monthKey], monthKey);
+    var next = DateUtil.addMonths(monthKey, 1);
+    var ipa = { start: monthKey + "-01", end: monthKey + "-14" };
+    var haepa = { start: monthKey + "-14", end: next + "-14" };
+    document.getElementById("ipa-range").textContent =
+      "지난달 출발조 · " + ipa.start + " ~ " + ipa.end + " (14일 복귀 인수인계)";
+    document.getElementById("haepa-range").textContent =
+      "이번 달 출발조 · " + haepa.start + " ~ " + haepa.end + " (14일 출발, 다음 달 14일 복귀 인수인계)";
+    document.getElementById("ipa-list").innerHTML = memberHtml(state, state.dispatches[prev], prev, ipa.start, ipa.end);
+    document.getElementById("haepa-list").innerHTML = memberHtml(state, state.dispatches[monthKey], monthKey, haepa.start, haepa.end);
+
+    var today = DateUtil.today();
+    var phase = document.getElementById("disp-phase");
+    var ipaNow = document.getElementById("ipa-now");
+    var haepaNow = document.getElementById("haepa-now");
+    var ipaCard = document.getElementById("ipa-card");
+    var haepaCard = document.getElementById("haepa-card");
+    ipaNow.hidden = true;
+    haepaNow.hidden = true;
+    ipaCard.classList.remove("current");
+    haepaCard.classList.remove("current");
+    if (DateUtil.monthKey(today) === monthKey) {
+      var day = Number(today.slice(8));
+      if (day < 14) {
+        ipaNow.hidden = false;
+        ipaCard.classList.add("current");
+        phase.textContent = "오늘은 14일 전입니다. 이파인(지난달 출발조)이 파견 중이고, 14일 인수인계부터 해파인이 나갑니다.";
+      } else if (day > 14) {
+        haepaNow.hidden = false;
+        haepaCard.classList.add("current");
+        phase.textContent = "14일이 지났습니다. 해파인(이번 달 출발조)이 파견 중이고, 다음 달 14일 인수인계에 복귀합니다.";
+      } else {
+        ipaNow.hidden = false;
+        haepaNow.hidden = false;
+        ipaCard.classList.add("current");
+        haepaCard.classList.add("current");
+        phase.textContent = "오늘은 인수인계일입니다. 이파인과 해파인 모두 취사지원에서 빠집니다.";
+      }
+    } else {
+      phase.textContent = "이 달은 1일부터 14일까지 이파인, 14일부터 다음 달 14일까지 해파인이 취사지원에서 빠집니다.";
+    }
 
     var nextSel = document.getElementById("next-month");
     var keepNext = nextSel.value || DateUtil.addMonths(monthKey, 1);
@@ -216,6 +276,8 @@ var DispatchPage = (function () {
       });
     };
     document.getElementById("next-month").onchange = render;
+    document.getElementById("cand-driver").addEventListener("change", function () { limitChecks("cand-driver", 1); });
+    document.getElementById("cand-signal").addEventListener("change", function () { limitChecks("cand-signal", 3); });
     document.getElementById("next-save").onclick = saveNext;
     document.getElementById("change-month").onchange = function () { fillChangePeople(); render(); };
     document.getElementById("change-type").onchange = render;

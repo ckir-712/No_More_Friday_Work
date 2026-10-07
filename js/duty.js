@@ -22,10 +22,14 @@ var DutyPage = (function () {
     var people = state.personnel;
     var weekdayScore = {};
     var weekendScore = {};
+    var weekdayDays = {};
+    var weekendDays = {};
     var i, p, d;
     for (i = 0; i < people.length; i++) {
       weekdayScore[people[i].id] = 0;
       weekendScore[people[i].id] = 0;
+      weekdayDays[people[i].id] = [];
+      weekendDays[people[i].id] = [];
     }
     for (d = 0; d < days.length; d++) {
       var day = days[d];
@@ -34,8 +38,13 @@ var DutyPage = (function () {
         p = people[i];
         if (!isEligible(state, p, day)) continue;
         var w = Unit.dutyWeight(state, p, day);
-        if (weekend) weekendScore[p.id] += w;
-        else weekdayScore[p.id] += w;
+        if (weekend) {
+          weekendScore[p.id] += w;
+          weekendDays[p.id].push(day);
+        } else {
+          weekdayScore[p.id] += w;
+          weekdayDays[p.id].push(day);
+        }
       }
     }
     function targets(scores, slotDays) {
@@ -60,6 +69,7 @@ var DutyPage = (function () {
 
     var pastMonths = Object.keys(state.duties.cook);
     for (i = 0; i < pastMonths.length; i++) {
+      if (pastMonths[i] === monthKey) continue;
       var plan = state.duties.cook[pastMonths[i]];
       for (var dk in plan) {
         var ids = plan[dk] || [];
@@ -81,15 +91,21 @@ var DutyPage = (function () {
         if (isEligible(state, people[i], day)) eligible.push(people[i]);
       }
       var picked = [];
+      function daysFrom(list, ymd) {
+        var n = 0;
+        for (var t = 0; t < list.length; t++) if (list[t] >= ymd) n++;
+        return n;
+      }
       function scoreOf(person) {
         var target = weekend ? weekendTarget[person.id] : weekdayTarget[person.id];
         var cur = weekend ? weekendCount[person.id] : weekdayCount[person.id];
-        var deficit = target - cur;
+        var left = daysFrom(weekend ? weekendDays[person.id] : weekdayDays[person.id], day);
+        var urgency = left ? (target - cur) / left : -1;
         var penalty = 0;
         for (var x = 0; x < picked.length; x++) {
-          penalty += (pairCount[pairKey(person.id, picked[x])] || 0) * 2.4;
+          penalty += (pairCount[pairKey(person.id, picked[x])] || 0) * 0.35;
         }
-        return deficit * 10 - penalty;
+        return urgency + (left ? 0.001 / left : 0) - penalty;
       }
       for (var slot = 0; slot < 3; slot++) {
         var best = null;

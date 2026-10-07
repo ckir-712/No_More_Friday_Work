@@ -15,6 +15,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }
 body {
   font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
@@ -211,6 +212,13 @@ th { color: var(--muted); font-size: 12px; }
 .cal-hint { font-size: 12px; color: var(--muted); }
 
 .candidate { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.seg-dates { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.group-card.current {
+  outline: 2px solid var(--olive);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f3f7ee;
+}
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 900px) {
   .two-col, .cal-month { grid-template-columns: 1fr; }

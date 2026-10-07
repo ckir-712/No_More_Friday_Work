@@ -17,7 +17,7 @@ var LeavePage = (function () {
     el.innerHTML = html || '<option value="">인원 없음</option>';
   }
 
-  function wouldExceed(state, start, end, ignoreId) {
+  function wouldExceed(state, start, end, personId, ignoreId) {
     var cap = Unit.dailyLeaveCap(state);
     var days = DateUtil.eachDay(start, end);
     for (var i = 0; i < days.length; i++) {
@@ -28,7 +28,8 @@ var LeavePage = (function () {
         if (ignoreId && lv.id === ignoreId) continue;
         if (DateUtil.inRange(days[i], lv.start, lv.end)) ids[lv.personId] = true;
       }
-      if (Object.keys(ids).length + 1 > cap) return true;
+      if (personId) ids[personId] = true;
+      if (Object.keys(ids).length > cap) return true;
     }
     return false;
   }
@@ -39,7 +40,7 @@ var LeavePage = (function () {
         .filter(function (r) { return r.status === "hold"; })
         .sort(function (a, b) { return a.createdAt - b.createdAt; });
       for (var i = 0; i < holds.length; i++) {
-        if (!wouldExceed(state, holds[i].start, holds[i].end, holds[i].id)) {
+        if (!wouldExceed(state, holds[i].start, holds[i].end, holds[i].personId, holds[i].id)) {
           holds[i].status = "confirmed";
         }
       }
@@ -61,7 +62,7 @@ var LeavePage = (function () {
         start: range.start,
         end: range.end,
         type: type,
-        status: wouldExceed(state, range.start, range.end) ? "hold" : "confirmed",
+        status: wouldExceed(state, range.start, range.end, personId) ? "hold" : "confirmed",
         createdAt: Date.now()
       };
       state.leaveRequests.push(req);
@@ -106,9 +107,28 @@ var LeavePage = (function () {
     return rows || '<tr><td colspan="6" class="muted">이 달 희망자가 없습니다.</td></tr>';
   }
 
+  function compiledForMonth(state) {
+    var start = monthKey + "-01";
+    var end = monthKey + "-" + DateUtil.pad(DateUtil.daysInMonth(monthKey));
+    var seen = {};
+    var items = [];
+    var months = Object.keys(state.leaveLists);
+    for (var i = 0; i < months.length; i++) {
+      var list = state.leaveLists[months[i]] || [];
+      for (var j = 0; j < list.length; j++) {
+        var it = list[j];
+        if (!it || seen[it.id]) continue;
+        if (!DateUtil.rangesOverlap(it.start, it.end, start, end)) continue;
+        seen[it.id] = true;
+        items.push(it);
+      }
+    }
+    return items;
+  }
+
   function matrix(state) {
     var days = DateUtil.daysOfMonth(monthKey);
-    var items = state.leaveLists[monthKey] || [];
+    var items = compiledForMonth(state);
     var byPerson = {};
     var i;
     for (i = 0; i < items.length; i++) {
